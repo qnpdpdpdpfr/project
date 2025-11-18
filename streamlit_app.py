@@ -10,33 +10,26 @@ st.title("우리나라 기후 평년값 대시보드")
 # ---------------------
 @st.cache_data
 def load_data(file_path):
-    # 1. 원시 바이너리 읽기
+    import chardet
+    # 1) Detect encoding
     with open(file_path, "rb") as f:
         raw = f.read()
-    import chardet
-    detected = chardet.detect(raw)["encoding"]
+        enc = chardet.detect(raw)["encoding"]
 
-    # 1차 시도: 감지된 인코딩
+    # 2) Try detected encoding
     try:
-        return pd.read_csv(file_path, encoding=detected)
-    except:
+        return pd.read_csv(file_path, encoding=enc)
+    except Exception:
         pass
 
-    # 2차 시도: cp949
+    # 3) Try cp949
     try:
         return pd.read_csv(file_path, encoding="cp949")
-    except:
+    except Exception:
         pass
 
-    # 3차 시도: latin1 (무조건 읽힘)
+    # 4) Final fallback: latin1 (never fails)
     return pd.read_csv(file_path, encoding="latin1")
-    except:
-        pass
-
-    # 두 번째 시도: cp949
-    try:
-        df = pd.read_csv(file_path, encoding="cp949", )
-        return df
     except:
         pass
 
@@ -110,3 +103,4 @@ st.download_button(
     file_name="processed_data.csv",
     mime='text/csv'
 )
+
