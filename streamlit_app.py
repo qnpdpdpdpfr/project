@@ -24,13 +24,13 @@ def load_data(file_path):
 
     # 두 번째 시도: cp949
     try:
-        df = pd.read_csv(file_path, encoding="cp949", errors="replace")
+        df = pd.read_csv(file_path, encoding="cp949", )
         return df
     except:
         pass
 
     # 세 번째 시도: utf-8
-    df = pd.read_csv(file_path, encoding="utf-8", errors="replace")
+    df = pd.read_csv(file_path, encoding="utf-8", )
     return df
 
 # ---------------------
