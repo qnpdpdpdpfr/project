@@ -14,18 +14,20 @@ def load_data(path):
     # 인코딩 자동 감지
     with open(path, "rb") as f:
         raw = f.read()
-        enc = chardet.detect(raw)["encoding"]
+        result = chardet.detect(raw)
+        enc = result.get("encoding", "utf-8")
 
-    # 1차 시도: 감지된 인코딩
+    # try-except 전체 블록
     try:
-        return pd.read_csv(path, encoding=enc)
+        df = pd.read_csv(path, encoding=enc)
+        return df
     except Exception:
         pass
 
-    # 2차 시도: 일반적인 한국어 인코딩들
     for enc2 in ["cp949", "euc-kr", "utf-8"]:
         try:
-            return pd.read_csv(path, encoding=enc2)
+            df = pd.read_csv(path, encoding=enc2)
+            return df
         except Exception:
             pass
 
