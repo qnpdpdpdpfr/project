@@ -3,69 +3,80 @@ import pandas as pd
 import altair as alt
 import chardet
 
-FILE = "STCS_우리나라기후평년값_DD_20251118211755.csv"
+st.title("우리나라 기후 평년값 대시보드")
 
 # ---------------------
-# 안전한 CSV 로딩 함수 (오류 X)
+# 안전한 CSV 로딩 함수
 # ---------------------
 @st.cache_data
 def load_data(path):
-    # 1) chardet로 인코딩 감지
+    import chardet
+    # 인코딩 자동 감지
     with open(path, "rb") as f:
         raw = f.read()
-        detect = chardet.detect(raw)
-        enc = detect["encoding"]
+        enc = chardet.detect(raw)["encoding"]
 
-    # 2) 감지된 인코딩으로 읽기
+    # 1차 시도: 감지된 인코딩
     try:
-        df = pd.read_csv(path, encoding=enc)
-        return df
-    except:
+        return pd.read_csv(path, encoding=enc)
+    except Exception:
         pass
 
-    # 3) 최종 fallback
+    # 2차 시도: 일반적인 한국어 인코딩들
     for enc2 in ["cp949", "euc-kr", "utf-8"]:
         try:
-            df = pd.read_csv(path, encoding=enc2)
-            return df
-        except:
-            continue
+            return pd.read_csv(path, encoding=enc2)
+        except Exception:
+            pass
 
-    # 모두 실패한 경우
     st.error("CSV 파일을 읽을 수 없습니다.")
     return pd.DataFrame()
 
 # ---------------------
-# 데이터 로드
+# CSV 파일 로드
 # ---------------------
-data = load_data(FILE)
+FILE = "STCS_우리나라기후평년값_DD_20251118211755.csv"
 
-st.title("우리나라 기후 평년값 대시보드")
+data = load_data(FILE)
 
 # ---------------------
 # 데이터 보기
 # ---------------------
 if st.checkbox("데이터 보기"):
-    st.dataframe(data)
+    st.dataframe(pd.DataFrame(data))
 
 # ---------------------
-# 시각화
+# 컬럼 분류
 # ---------------------
-numeric_cols = data.select_dtypes(include=['float64', 'int64']).columns.tolist()
+try:
+    numeric_cols = data.select_dtypes(include=['float64', 'int64']).columns.tolist()
+except:
+    numeric_cols = []
 
-# 날짜 컬럼 자동 탐색 (없으면 첫 번째 컬럼 사용)
-date_cols = [c for c in data.columns if "일" in c or "date" in c.lower()]
-x_col = date_cols[0] if date_cols else data.columns[0]
+# x축 컬럼 강제 문자열 변환
+stringified = data.astype(str)
 
-target_col = st.selectbox("시각화할 컬럼 선택", numeric_cols)
+# ---------------------
+# 시각화 컬럼 선택
+# ---------------------
+if numeric_cols:
+    target_col = st.selectbox("시각화할 컬럼 선택", numeric_cols)
+else:
+    st.error("수치형 컬럼이 없어서 그래프를 생성할 수 없습니다.")
+    st.stop()
+
+# ---------------------
+# 안정적인 Altair 차트 생성
+# ---------------------
+alt.data_transformers.disable_max_rows()
 
 chart = (
-    alt.Chart(data)
+    alt.Chart(stringified.reset_index())
     .mark_line()
     .encode(
-        x=alt.X(x_col, title="날짜"),
+        x=alt.X("index:N", title="행 번호"),
         y=alt.Y(target_col, title=target_col),
-        tooltip=[x_col, target_col]
+        tooltip=[target_col]
     )
 )
 
@@ -78,12 +89,12 @@ st.subheader("요약 통계")
 st.write(data[target_col].describe())
 
 # ---------------------
-# 다운로드 버튼
+# 파일 다운로드
 # ---------------------
 csv = data.to_csv(index=False).encode('utf-8')
 st.download_button(
     label="CSV 다운로드",
     data=csv,
     file_name="processed_data.csv",
-    mime="text/csv"
+    mime='text/csv'
 )
