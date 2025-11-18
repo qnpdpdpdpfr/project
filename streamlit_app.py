@@ -21,8 +21,8 @@ def load_data():
     df = pd.read_csv(file_path, encoding=enc, errors="replace")
     return df
 
-
-data = load_data()
+file_path = "STCS_우리나라기후평년값_DD_20251118211755.csv"
+data = "STCS_우리나라기후평년값_DD_20251118211755.csv"
 
 st.title("우리나라 기후 평년값 대시보드")
 
