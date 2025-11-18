@@ -5,8 +5,22 @@ import altair as alt
 # Load data
 @st.cache_data
 def load_data():
-    df = pd.read_csv("STCS_우리나라기후평년값_DD_20251118211755.csv", encoding="utf-8")
+    import chardet
+
+    file_path = "STCS_우리나라기후평년값_DD_20251118211755.csv"
+
+    # 인코딩 자동 탐지
+    with open(file_path, "rb") as f:
+        rawdata = f.read()
+        detected = chardet.detect(rawdata)
+        enc = detected["encoding"]
+
+    st.write("Detected encoding:", enc)
+
+    # 안전하게 읽기
+    df = pd.read_csv(file_path, encoding=enc, errors="replace")
     return df
+
 
 data = load_data()
 
