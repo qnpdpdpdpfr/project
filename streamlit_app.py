@@ -1,82 +1,79 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
-import chardet
 
-st.title("우리나라 기후 평년값 대시보드")
-
-# ---------------------
-# 안전한 CSV 로딩 함수
-# ---------------------
-@st.cache_data
-def load_data(path):
-    import chardet
-    # 인코딩 자동 감지
-    with open(path, "rb") as f:
-        raw = f.read()
-        result = chardet.detect(raw)
-        enc = result.get("encoding", "utf-8")
-
-    # try-except 전체 블록
-    try:
-        df = pd.read_csv(path, encoding=enc)
-        return df
-    except Exception:
-        pass
-
-    for enc2 in ["cp949", "euc-kr", "utf-8"]:
-        try:
-            df = pd.read_csv(path, encoding=enc2)
-            return df
-        except Exception:
-            pass
-
-    st.error("CSV 파일을 읽을 수 없습니다.")
-    return pd.DataFrame()
-
-# ---------------------
-# CSV 파일 로드
-# ---------------------
+# --------------------------------------------------
+# 1) 파일 경로
+# --------------------------------------------------
 FILE = "STCS_우리나라기후평년값_DD_20251118211755.csv"
 
+# --------------------------------------------------
+# 2) CSV 로드 함수 (EUC-KR 고정 + 안정적 예외처리)
+# --------------------------------------------------
+@st.cache_data
+def load_data(path):
+    try:
+        # 가장 가능성 높은 EUC-KR로 직접 로드
+        return pd.read_csv(path, encoding="euc-kr")
+    except:
+        try:
+            # UTF-8 BOM 가능성
+            return pd.read_csv(path, encoding="utf-8-sig")
+        except:
+            try:
+                # 구분자 자동 추론
+                return pd.read_csv(path, encoding="euc-kr", sep=None, engine="python")
+            except Exception as e:
+                st.error(f"CSV 파일을 읽을 수 없습니다: {e}")
+                return pd.DataFrame()
+
+# --------------------------------------------------
+# 3) 데이터 불러오기
+# --------------------------------------------------
 data = load_data(FILE)
 
-# ---------------------
-# 데이터 보기
-# ---------------------
+st.title("우리나라 기후 평년값 대시보드 (안정 버전)")
+
+# --------------------------------------------------
+# 4) 데이터 확인
+# --------------------------------------------------
 if st.checkbox("데이터 보기"):
-    st.dataframe(pd.DataFrame(data))
+    st.dataframe(data)
 
-# ---------------------
-# 컬럼 분류
-# ---------------------
-try:
-    numeric_cols = data.select_dtypes(include=['float64', 'int64']).columns.tolist()
-except:
-    numeric_cols = []
-
-# x축 컬럼 강제 문자열 변환
-stringified = data.astype(str)
-
-# ---------------------
-# 시각화 컬럼 선택
-# ---------------------
-if numeric_cols:
-    target_col = st.selectbox("시각화할 컬럼 선택", numeric_cols)
-else:
-    st.error("수치형 컬럼이 없어서 그래프를 생성할 수 없습니다.")
+# --------------------------------------------------
+# 5) 숫자 컬럼 자동 감지
+# --------------------------------------------------
+if len(data) == 0:
     st.stop()
 
-# ---------------------
-# 안정적인 Altair 차트 생성
-# ---------------------
-alt.data_transformers.disable_max_rows()
+numeric_cols = data.select_dtypes(include=['float64', 'int64']).columns.tolist()
+
+if len(numeric_cols) == 0:
+    st.warning("숫자형 컬럼이 없습니다.")
+    st.stop()
+
+# --------------------------------------------------
+# 6) 날짜 또는 인덱스 기반 x축 설정
+# --------------------------------------------------
+# 날짜 컬럼 찾기 (없으면 인덱스 사용)
+date_cols = [c for c in data.columns if any(k in c.lower() for k in ["date", "일", "날짜"])]
+
+if date_cols:
+    x_col = date_cols[0]
+else:
+    data = data.reset_index()
+    x_col = "index"
+
+# --------------------------------------------------
+# 7) 시각화
+# --------------------------------------------------
+target_col = st.selectbox("시각화할 숫자 컬럼 선택", numeric_cols)
 
 chart = (
-    alt.Chart(stringified.reset_index())
+    alt.Chart(data)
     .mark_line()
     .encode(
-        x=alt.X("index:N", title="행 번호"),
+        x=alt.X(x_col, title="X축"),
         y=alt.Y(target_col, title=target_col),
         tooltip=[target_col]
     )
@@ -84,19 +81,14 @@ chart = (
 
 st.altair_chart(chart, use_container_width=True)
 
-# ---------------------
-# 요약 통계
-# ---------------------
+# --------------------------------------------------
+# 8) 요약 통계
+# --------------------------------------------------
 st.subheader("요약 통계")
 st.write(data[target_col].describe())
 
-# ---------------------
-# 파일 다운로드
-# ---------------------
-csv = data.to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="CSV 다운로드",
-    data=csv,
-    file_name="processed_data.csv",
-    mime='text/csv'
-)
+# --------------------------------------------------
+# 9) 다운로드
+# --------------------------------------------------
+csv = data.to_csv(index=False).encode('utf-8-sig')
+st.download_button("CSV 다운로드", csv, "processed_data.csv", "text/csv")
